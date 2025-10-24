@@ -89,24 +89,17 @@ async function stopChat(userId, notify = true) {
   }
 }
 
-// ------------------ UI / Menu ------------------
+// ------------------ UI / MENU ------------------
 function mainMenu() {
   return {
     reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "💬 Mulai Chat", callback_data: "start_chat" },
-          { text: "🛑 Berhenti", callback_data: "stop_chat" },
-        ],
-        [
-          { text: "⏭️ Next", callback_data: "next_chat" },
-          { text: "⚙️ Gender", callback_data: "set_gender" },
-        ],
-        [
-          { text: "📩 Hubungi Admin", callback_data: "contact_admin" },
-          { text: "❓ Bantuan", callback_data: "help" },
-        ],
+      keyboard: [
+        ["💬 Mulai Chat", "🛑 Berhenti"],
+        ["⏭️ Next", "⚙️ Gender"],
+        ["📩 Hubungi Admin", "❓ Bantuan"],
       ],
+      resize_keyboard: true,
+      one_time_keyboard: false,
     },
   };
 }
@@ -119,123 +112,130 @@ bot.onText(/\/start/, async (msg) => {
   await bot.sendMessage(
     id,
     `👋 *Selamat Datang di Random Chat Indonesia!*\n\n` +
-      `Kamu bisa bertemu orang baru dan ngobrol secara anonim.\n` +
-      `Gunakan tombol di bawah untuk mulai chatting 💬`,
+      `Tempat seru buat ngobrol anonim bareng orang baru 💫\n\n` +
+      `Gunakan tombol di bawah untuk mulai chatting! 💬`,
     { parse_mode: "Markdown", ...mainMenu() }
   );
 });
 
-// ------------------ HELP ------------------
-bot.onText(/\/help/, async (msg) => {
-  const help = `
-🆘 *Panduan Random Chat Indonesia*
-
-💬 /start – Mulai bot
-⏭️ /next – Ganti partner
-🛑 /stop – Berhenti chat
-⚙️ /gender – Pilih jenis kelamin
-📩 /lapor – Kirim pesan ke admin
-
-Nikmati obrolan yang seru dan tetap sopan ya 😊
-`;
-  bot.sendMessage(msg.chat.id, help, { parse_mode: "Markdown", ...mainMenu() });
-});
-
-// ------------------ CALLBACK BUTTON ------------------
-bot.on("callback_query", async (query) => {
-  const userId = query.from.id;
+// ------------------ TEXT HANDLER ------------------
+bot.on("message", async (msg) => {
+  const text = msg.text;
+  const userId = msg.from.id;
   createUser(userId);
 
-  switch (query.data) {
-    case "start_chat":
+  const menuList = [
+    "💬 Mulai Chat",
+    "🛑 Berhenti",
+    "⏭️ Next",
+    "⚙️ Gender",
+    "📩 Hubungi Admin",
+    "❓ Bantuan",
+    "👦 Cowok",
+    "👧 Cewek",
+    "🎲 Acak",
+    "⬅️ Kembali",
+  ];
+
+  // Kalau bukan pesan tombol menu
+  if (!menuList.includes(text)) {
+    const user = await getUser(userId);
+    if (!user || user.status !== STATUS.CHATTING || !user.partner_id) {
+      bot.sendMessage(userId, "⚠️ Kamu belum memulai chat.\nTekan *💬 Mulai Chat* untuk mulai ngobrol!", {
+        parse_mode: "Markdown",
+        ...mainMenu(),
+      });
+      return;
+    }
+
+    // Forward pesan ke partner
+    try {
+      await bot.copyMessage(user.partner_id, msg.chat.id, msg.message_id);
+    } catch (e) {
+      console.error("❌ Gagal kirim pesan:", e.message);
+    }
+    return;
+  }
+
+  // ------------------ MENU ACTIONS ------------------
+  switch (text) {
+    case "💬 Mulai Chat": {
       const partner = await findPartner(userId);
       if (partner) {
-        bot.sendMessage(userId, "🎉 Kamu terhubung! Sapa pasanganmu 👋");
-        bot.sendMessage(partner, "🎉 Kamu terhubung! Sapa pasanganmu 👋");
+        bot.sendMessage(userId, "🎉 Kamu terhubung! Sapa pasanganmu 👋", mainMenu());
+        bot.sendMessage(partner, "🎉 Kamu terhubung! Sapa pasanganmu 👋", mainMenu());
       } else {
-        bot.sendMessage(userId, "🔍 Mencari partner... Mohon tunggu sebentar ⏳");
+        bot.sendMessage(userId, "🔍 Sedang mencari partner... Mohon tunggu sebentar ⏳", mainMenu());
       }
       break;
+    }
 
-    case "stop_chat":
+    case "🛑 Berhenti":
       await stopChat(userId);
       bot.sendMessage(userId, "🛑 Obrolan dihentikan.", mainMenu());
       break;
 
-    case "next_chat":
+    case "⏭️ Next":
       await stopChat(userId, false);
       const next = await findPartner(userId);
       if (next) {
-        bot.sendMessage(userId, "🔄 Partner baru ditemukan!");
-        bot.sendMessage(next, "🔄 Partner baru ditemukan!");
+        bot.sendMessage(userId, "🔄 Partner baru ditemukan! 🎉", mainMenu());
+        bot.sendMessage(next, "🔄 Partner baru ditemukan! 🎉", mainMenu());
       } else {
-        bot.sendMessage(userId, "🔍 Mencari partner baru...");
+        bot.sendMessage(userId, "🔍 Mencari partner baru... ⏳", mainMenu());
       }
       break;
 
-    case "set_gender":
+    case "⚙️ Gender":
       bot.sendMessage(userId, "Pilih jenis kelamin kamu:", {
         reply_markup: {
-          inline_keyboard: [
-            [
-              { text: "👦 Cowok", callback_data: "gender_male" },
-              { text: "👧 Cewek", callback_data: "gender_female" },
-            ],
-            [{ text: "🎲 Acak", callback_data: "gender_random" }],
+          keyboard: [
+            ["👦 Cowok", "👧 Cewek"],
+            ["🎲 Acak", "⬅️ Kembali"],
           ],
+          resize_keyboard: true,
         },
       });
       break;
 
-    case "help":
-      bot.sendMessage(
-        userId,
-        "🆘 Gunakan tombol untuk memulai / menghentikan chat.\n" +
-          "Bot ini anonim, identitasmu aman 👻",
-        mainMenu()
-      );
-      break;
-
-    case "contact_admin":
-      bot.sendMessage(userId, "📨 Ketik pesanmu untuk admin.\nBalas dengan /batal untuk membatalkan.");
-      break;
-
-    case "gender_male":
+    case "👦 Cowok":
       setGender(userId, "male");
       bot.sendMessage(userId, "✅ Gender kamu diset ke *Cowok*", { parse_mode: "Markdown", ...mainMenu() });
       break;
 
-    case "gender_female":
+    case "👧 Cewek":
       setGender(userId, "female");
       bot.sendMessage(userId, "✅ Gender kamu diset ke *Cewek*", { parse_mode: "Markdown", ...mainMenu() });
       break;
 
-    case "gender_random":
+    case "🎲 Acak":
       setGender(userId, "random");
       bot.sendMessage(userId, "✅ Gender kamu diset ke *Acak*", { parse_mode: "Markdown", ...mainMenu() });
       break;
-  }
-});
 
-// ------------------ FORWARD PESAN ------------------
-bot.on("message", async (msg) => {
-  if (msg.text && msg.text.startsWith("/")) return;
+    case "📩 Hubungi Admin":
+      bot.sendMessage(userId, "📨 Kirim pesan kamu ke admin.\nKetik */batal* untuk membatalkan.", {
+        parse_mode: "Markdown",
+        ...mainMenu(),
+      });
+      break;
 
-  const user = await getUser(msg.from.id);
-  if (!user) return;
+    case "❓ Bantuan":
+      bot.sendMessage(
+        userId,
+        `🆘 *Panduan Penggunaan*\n\n` +
+          `💬 *Mulai Chat* – Mencari teman ngobrol anonim\n` +
+          `⏭️ *Next* – Ganti partner baru\n` +
+          `🛑 *Berhenti* – Akhiri obrolan\n` +
+          `⚙️ *Gender* – Atur jenis kelamin\n\n` +
+          `Selamat bersenang-senang dan tetap sopan ya 😊`,
+        { parse_mode: "Markdown", ...mainMenu() }
+      );
+      break;
 
-  if (user.status !== STATUS.CHATTING || !user.partner_id) {
-    bot.sendMessage(msg.chat.id, "⚠️ Kamu belum memulai chat. Tekan *💬 Mulai Chat*.", {
-      parse_mode: "Markdown",
-      ...mainMenu(),
-    });
-    return;
-  }
-
-  try {
-    await bot.copyMessage(user.partner_id, msg.chat.id, msg.message_id);
-  } catch (e) {
-    console.error("❌ Gagal kirim pesan:", e.message);
+    case "⬅️ Kembali":
+      bot.sendMessage(userId, "🔙 Kembali ke menu utama.", mainMenu());
+      break;
   }
 });
 
@@ -248,7 +248,8 @@ bot.onText(/\/stats/, async (msg) => {
       db.get("SELECT COUNT(*) AS searching FROM users WHERE status = ?", [STATUS.SEARCHING], (e3, r3) => {
         bot.sendMessage(
           msg.chat.id,
-          `📊 Statistik:\n👥 Total: ${row.total}\n💬 Chatting: ${r2.chatting}\n🔍 Mencari: ${r3.searching}`
+          `📊 *Statistik Bot:*\n\n👥 Total pengguna: ${row.total}\n💬 Sedang chat: ${r2.chatting}\n🔍 Sedang mencari: ${r3.searching}`,
+          { parse_mode: "Markdown" }
         );
       });
     });

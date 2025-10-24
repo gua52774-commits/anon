@@ -1,22 +1,11 @@
-// database.js
 const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("./data.db", (err) => {
-  if (err) {
-    console.error("❌ Gagal konek ke database:", err.message);
-  } else {
-    console.log("✅ Database terhubung.");
-  }
-});
+const db = new sqlite3.Database("./database.sqlite");
 
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY,
-      gender TEXT,
-      status TEXT,
-      partner_id INTEGER
-    )
-  `);
-});
-
-module.exports = db;
+db.run(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    status TEXT,
+    partner_id INTEGER,
+    muted INTEGER DEFAULT 0
+  )
+`);
